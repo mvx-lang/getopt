@@ -1,0 +1,10 @@
+CATALOG/
+LIB/
+bin/
+mvxdata.lmdb/
+BP.O/
+*.dSYM/
+*.o
+*.dylib
+*.so
+BP.INC/PLATFORM.H
