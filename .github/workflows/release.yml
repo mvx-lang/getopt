@@ -1,0 +1,22 @@
+# Release getopt on a version tag: publish the source package as a GitHub
+# release asset.  getopt is pure BASIC (no native build) — it installs by
+# cataloging its GETOPT.* subroutines — so a single portable source artifact is
+# all it ships.
+# Copyright (C) 2026 Gordon Heydon.  GPL-2.0-only.
+name: release
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+*"
+permissions:
+  contents: write
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: mvx-lang/mvx/.github/actions/publish-source@main
+        with:
+          package: mvx-lang/getopt
+          title: getopt
+          body: "GETOPT — a portable, quote-aware option parser for MultiValue BASIC. Pure BASIC; indexed by the package registry."
