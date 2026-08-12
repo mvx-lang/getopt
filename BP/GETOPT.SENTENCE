@@ -9,12 +9,17 @@
 * SPDX-License-Identifier: GPL-2.0-only
 * /**
 *  * @file GETOPT.SENTENCE
-*  * @version 1.0
+*  * @version 1.1
 *  */
+* Portable command-line fetch — the one platform seam.  Native MVX reads it from
+* SENTENCE(); every MV vendor reads @SENTENCE.  The MV define comes from mvpkg's
+* shared PLATFORM.H via the MVPKG.INC pointer (MVX is builtin, so MV is absent
+* there); getopt therefore depends on mvpkg having provisioned the account.
+$INCLUDE MVPKG.INC PLATFORM.H
 SUBROUTINE GETOPT.SENTENCE(S)
-$IFDEF MVX
-S = TRIM(SENTENCE())
-$ELSE
+$IFDEF MV
 S = TRIM(@SENTENCE)
+$ELSE
+S = TRIM(SENTENCE())
 $ENDIF
 RETURN
