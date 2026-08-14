@@ -10,7 +10,8 @@
   "provides": [
     "getopt"
   ],
-  "dependencies": [
+  "dependencies": [],
+  "devDependencies": [
     "mvx-lang/mvpkg"
   ]
 }
