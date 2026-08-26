@@ -15,8 +15,8 @@
 * SENTENCE(); every MV vendor reads @SENTENCE.  The MV define comes from mvpkg's
 * shared PLATFORM.H via the MVPKG.INC pointer (MVX is builtin, so MV is absent
 * there); getopt therefore depends on mvpkg having provisioned the account.
-$INCLUDE MVPKG.INC PLATFORM.H
 SUBROUTINE GETOPT.SENTENCE(S)
+$INCLUDE MVPKG.INC PLATFORM.H
 $IFDEF MV
 S = TRIM(@SENTENCE)
 $ELSE
