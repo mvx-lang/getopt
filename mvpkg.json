@@ -1,5 +1,6 @@
 {
  "name": "mvx-lang/getopt",
+ "artifact": "getopt",
  "version": "1.0",
  "description": "declarative command-line option parser (getopt for MV sentences)",
  "license": "GPL-2.0-only",
