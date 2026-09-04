@@ -29,6 +29,7 @@ jobs:
       - uses: mvx-lang/mvx/.github/actions/publish-source@main
         with:
           package: mvx-lang/getopt
+          artifact: getopt
           title: getopt
           body: "GETOPT — a portable, quote-aware option parser for MultiValue BASIC. Pure BASIC; indexed by the package registry."
 
@@ -61,7 +62,7 @@ jobs:
         run: |
           set -euo pipefail
           VER="${GITHUB_REF_NAME}"
-          BASE="mvx-lang_getopt-$VER-${{ matrix.system }}-any-any-le"
+          BASE="getopt-$VER-${{ matrix.system }}-any-any-le"
           rm -rf dist && mkdir -p dist
           sh build-pkg.sh dist
           tar czf "$BASE.tar.gz" -C dist getopt
