@@ -1,17 +1,19 @@
 {
-  "name": "mvx-lang/getopt",
-  "version": "1.0",
-  "description": "declarative command-line option parser (getopt for MV sentences)",
-  "license": "GPL-2.0-only",
-  "systems": [
-    "mvx",
-    "udt"
-  ],
-  "provides": [
-    "getopt"
-  ],
-  "dependencies": [],
-  "devDependencies": [
-    "mvx-lang/mvpkg"
-  ]
+ "name": "mvx-lang/getopt",
+ "version": "1.0",
+ "description": "declarative command-line option parser (getopt for MV sentences)",
+ "license": "GPL-2.0-only",
+ "systems": [
+  "mvx",
+  "udt",
+  "uv",
+  "jbase"
+ ],
+ "provides": [
+  "getopt"
+ ],
+ "dependencies": [],
+ "devDependencies": [
+  "mvx-lang/mvpkg"
+ ]
 }
