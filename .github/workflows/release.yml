@@ -1,7 +1,12 @@
-# Release getopt on a version tag: publish the source package as a GitHub
-# release asset.  getopt is pure BASIC (no native build) — it installs by
-# cataloging its GETOPT.* subroutines — so a single portable source artifact is
-# all it ships.
+# Release getopt on a version tag: publish the source package, an mvx binary
+# package, and one staged account per MV system, as GitHub release assets.
+#
+# getopt is pure BASIC, which means something different on each target.  udt,
+# uv and jbase compile and catalog on the target, so a staged account IS the
+# deliverable.  mvx links its subroutines out of a shared library, so "no
+# native build" still means a build -- BP/ compiled HERE into LIB/libgetopt.so.
+# Leaving mvx out because the package has no C in it published a release whose
+# PKG claimed mvx and whose assets could not be installed on it (#19).
 # Copyright (C) 2026 Gordon Heydon.  GPL-2.0-only.
 name: release
 on:
@@ -33,12 +38,124 @@ jobs:
           title: getopt
           body: "GETOPT — a portable, quote-aware option parser for MultiValue BASIC. Pure BASIC; indexed by the package registry."
 
+  # ---- mvx binary: compile the subroutine library against a published mvx ----
+  # WHY THIS IS NOT JUST ANOTHER `account` MATRIX ENTRY.  The staged account the
+  # other three ship is source, cataloged on the target by MVPKG.  There is no
+  # mvx compiler on the target to do that with -- an mvx package IS its built
+  # LIB -- so this builds against a published toolchain and ships the library.
+  #
+  # needs: [source] — NOT for ordering, but so this job never CREATES the release.
+  # Every publish step creates it as a side effect of uploading, so jobs starting
+  # together each try to create it and all but one fail with `already_exists` on
+  # tag_name, leaving a stray draft (curl-cmd#7).  `source` alone creates it.
+  mvx-binary:
+    needs: [source]
+    # The setup-mvx tarball is built on ubuntu-latest; run on a matching glibc.
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out getopt
+        uses: actions/checkout@v5
+
+      - name: Check out the mvx package tooling (scripts/mkpkg.sh)
+        uses: actions/checkout@v5
+        with:
+          repository: mvx-lang/mvx
+          path: .mvx-src
+          sparse-checkout: |
+            scripts
+            .github/actions/publish-source
+          sparse-checkout-cone-mode: false
+
+      - name: Set up the mvx toolchain (latest published build)
+        uses: mvx-lang/mvx/.github/actions/setup-mvx@main
+        with:
+          version: latest
+
+      - name: Build the mvx binary package
+        id: pkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME}"
+          ARCH="$(uname -m)"                        # ubuntu-24.04 -> x86_64
+          OS="$(uname -s | tr 'A-Z' 'a-z')"; case "$OS" in *linux*) OS=linux ;; esac
+          case "$(printf '\1\2' | od -An -tx2 | tr -d ' \n')" in
+            0201*) ENDIAN=le ;; 0102*) ENDIAN=be ;; *) ENDIAN=le ;;
+          esac
+          BASE="getopt-$VER-mvx-$OS-$ARCH-$ENDIAN"
+
+          # THE MANIFESTS HAVE TO SAY WHAT THIS RELEASE IS.  PKG line 2 and
+          # mvpkg.json carry whatever was last committed, which is why getopt
+          # 1.1.0 shipped declaring 1.0 (mvx#205).  publish-source stamps the
+          # SOURCE tarball with the tag; nothing stamped the binaries, and the
+          # claim that they take their version from the tag holds only for the
+          # artifact FILENAME -- cmd's published 1.4.1 mvx package still says
+          # `1.3.0` inside (mv_cmd#40).  Stamp before packing, using the same
+          # script publish-source uses, so both halves agree.
+          # Only off a tag, as publish-source does it: a branch name is not a
+          # version, and a workflow_dispatch can be run from one.
+          if [ "${GITHUB_REF_TYPE:-}" = tag ]; then
+            python3 .mvx-src/.github/actions/publish-source/stamp-manifests.py . "$VER"
+            test "$(sed -n 2p PKG)" = "$VER"
+          else
+            echo "not a tag (${GITHUB_REF_TYPE:-unset} $VER): manifests left as committed"
+          fi
+
+          # Compile BP/ into LIB/libgetopt.so against the installed mvx-basic.
+          MVXBASIC="$(command -v mvx-basic)" sh .mvx-src/scripts/mkpkg.sh .
+          test -f LIB/libgetopt.so
+
+          # AND IT HAS TO EXPORT EVERY SUBROUTINE.  mkpkg.sh succeeds and
+          # writes a library even when it bundled nothing into it, which is
+          # the shape #19 failed in: a package that installs cleanly and still
+          # leaves `mvx_sub_GETOPT` exported by nobody.  Publishing that is
+          # worse than publishing no mvx asset, because the registry then
+          # serves it in preference to source.  Ask for each record by name so
+          # a miss says WHICH, not just that a count moved.
+          syms="$(nm -D --defined-only LIB/libgetopt.so)"
+          missing=
+          for r in BP/GETOPT.*; do
+            n="${r#BP/}"
+            printf '%s\n' "$syms" | grep -q "mvx_sub_$n\$" || missing="$missing $n"
+          done
+          if [ -n "$missing" ]; then
+            echo "LIB/libgetopt.so does not export:$missing" >&2
+            exit 1
+          fi
+          echo "libgetopt.so exports all $(ls BP/GETOPT.* | wc -l) subroutines"
+
+          # Assemble a binary-only package: the prebuilt LIB the runtime links,
+          # plus the manifest/verb records — no BP source (installs identically
+          # to a source package via LINK-PKG, with nothing to recompile).
+          mkdir -p "dist/$BASE"
+          cp -a LIB PKG mvpkg.json LICENSE README.md "dist/$BASE/"
+          for d in VOC VOC.DICT LIB.DICT .mvx; do
+            [ -e "$d" ] && cp -a "$d" "dist/$BASE/" || true
+          done
+          rm -rf "dist/$BASE"/LIB/*.dSYM "dist/$BASE"/LIB/*.debug   # ship the library, not debug bundles
+          tar czf "$BASE.tar.gz" -C "dist/$BASE" .   # contents at the tar root (no wrapping dir)
+          sha256sum "$BASE.tar.gz" > "$BASE.tar.gz.sha256"
+          echo "tarball=$BASE.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "checksum=$BASE.tar.gz.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the mvx binary asset
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            ${{ steps.pkg.outputs.tarball }}
+            ${{ steps.pkg.outputs.checksum }}
+          fail_on_unmatched_files: true
+
   # ---- the account artifact, one per system it runs on ------------------------
   # getopt is BASIC only, so the staged account is IDENTICAL for udt, uv and
   # jbase -- what differs is the system name in the artifact key, and the
   # cataloging, which MVPKG does on the target.  Hence `any-any-le` and a plain
   # hosted runner rather than the licensed containers: os/arch-locking a package
   # with no native code would pin it to whichever machine packaged it.
+  #
+  # mvx is NOT one of these.  It has no compiler on the target to catalog with,
+  # so it takes the built library from the job above instead.
   #
   # Without these the registry serves this package as `source` on every system,
   # which is what it did for every port until now.
@@ -91,7 +208,7 @@ jobs:
   # Both directions are set explicitly, for the same reason: leaving the stable
   # case alone means it keeps whatever that race happened to leave behind.
   mark:
-    needs: [source, account]
+    needs: [source, mvx-binary, account]
     runs-on: ubuntu-latest
     steps:
       - name: Say what this release is
