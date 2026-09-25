@@ -20,7 +20,15 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ACCT="$STAGE/getopt"
 
 mkdir -p "$ACCT/BP"
-cp "$HERE"/BP/* "$ACCT/BP/"
+# FILES ONLY.  A tree that has been BUILT has BP/MVPKG.INC/ in it -- mkpkg.sh
+# lays down the shared PLATFORM.H there -- and `cp` without -r fails on a
+# directory, taking this script with it under set -e.  The release never saw it
+# because staging and building run as separate jobs on separate checkouts; ci
+# does both in one tree, which is how it surfaced (#24).  mv_cmd's staging has
+# guarded this for the same reason since its own near miss.
+for f in "$HERE"/BP/*; do
+   if [ -f "$f" ]; then cp "$f" "$ACCT/BP/"; fi
+done
 if [ -d "$HERE/BP.DICT" ]; then mkdir -p "$ACCT/BP.DICT"; cp "$HERE"/BP.DICT/* "$ACCT/BP.DICT/"; fi
 # EVERY STAGED SOURCE GETS A TRAILING NEWLINE.  UniVerse's compiler rejects a
 # source whose last line is unterminated -- "End of File unexpected, Was
