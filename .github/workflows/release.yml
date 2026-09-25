@@ -182,6 +182,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # JUST THE STAMPER (#26).  This job compiles nothing, so it needs no
+      # toolchain -- stamp-manifests.py is standalone Python.  Taken from
+      # `main`, which is mvx's RELEASED line: it moves when a release merges and
+      # not before, the right coupling for a script with no compiler dependency
+      # and the opposite of what broke #22.
+      - name: Check out the manifest stamper
+        uses: actions/checkout@v5
+        with:
+          repository: mvx-lang/mvx
+          ref: main
+          path: .mvx-src
+          sparse-checkout: .github/actions/publish-source
+          sparse-checkout-cone-mode: false
+
       - name: Stage the ${{ matrix.system }} account
         id: pkg
         shell: bash
@@ -191,6 +206,16 @@ jobs:
           BASE="getopt-$VER-${{ matrix.system }}-any-any-le"
           rm -rf dist && mkdir -p dist
           sh build-pkg.sh dist
+          # STAMPED AFTER STAGING, on the staged copy rather than the tree: the
+          # artifact is what has to be honest, and leaving the checkout alone
+          # keeps this job independent of the order the matrix runs in.  Without
+          # it 1.1.1 shipped udt, uv and jbase assets declaring 1.0 while its
+          # source and mvx assets were correct.
+          if [ "${GITHUB_REF_TYPE:-}" = tag ]; then
+            python3 .mvx-src/.github/actions/publish-source/stamp-manifests.py \
+              dist/getopt "$VER"
+            test "$(sed -n 2p dist/getopt/PKG)" = "$VER"
+          fi
           tar czf "$BASE.tar.gz" -C dist getopt
           sha256sum "$BASE.tar.gz" > "$BASE.tar.gz.sha256"
           echo "tarball=$BASE.tar.gz" >> "$GITHUB_OUTPUT"
